@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Particle Search</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .search-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            width: 90%;
+            max-width: 600px;
+        }
+
+        .search-wrapper {
+            display: flex;
+            align-items: stretch;
+            background: rgba(20, 20, 20, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 30px;
+            padding: 4px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            position: relative;
+            transition: border-color 0.3s ease;
+        }
+
+        .search-wrapper:focus-within {
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .search-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-size: 16px;
+            padding: 12px 20px;
+            width: 100%;
+        }
+
+        .search-button {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 24px;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            padding: 0 24px;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 4px;
+            outline: none;
+        }
+
+        .search-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            margin-top: 8px;
+            max-height: 250px;
+            overflow-y: auto;
+            list-style: none;
+            display: none;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            padding: 8px 0;
+        }
+
+        .suggestions li {
+            padding: 10px 20px;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            font-size: 15px;
+            transition: background 0.2s ease;
+        }
+
+        .suggestions li:hover, .suggestions li.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        /* Анимированные падающие буквы */
+        .falling-letter {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.9);
+            font-family: monospace;
+            font-size: 24px;
+            pointer-events: none;
+            z-index: 5;
+            animation: fadeOut 1s forwards ease-out;
+        }
+
+        @keyframes fadeOut {
+            0% {
+                transform: scale(0.5);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(2.5);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="particleCanvas"></canvas>
+
+    <div class="search-container">
+        <div class="search-wrapper">
+            <input type="text" class="search-input" placeholder="Поиск в Google..." autocomplete="off" autofocus>
+            <button class="search-button">Найти</button>
+            <ul class="suggestions"></ul>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('particleCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        const particles = [];
+        const maxParticles = 120;
+        let waves = [];
+        let enterTriggered = false;
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.baseX = this.x;
+                this.baseY = this.y;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.size = Math.random() * 2 + 1.5;
+                this.alpha = 0.8;
+                this.offsetX = 0;
+                this.offsetY = 0;
+                this.speedMultiplier = 1;
+            }
+
+            update() {
+                if (enterTriggered) {
+                    this.vx *= 1.08;
+                    this.vy *= 1.08;
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    return;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
+
+                this.offsetX *= 0.92;
+                this.offsetY *= 0.92;
+
+                waves.forEach(wave => {
+                    const dx = (this.x + this.offsetX) - wave.x;
+                    const dy = (this.y + this.offsetY) - wave.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < wave.radius && distance > wave.radius - 120) {
+                        const force = (1 - (distance / wave.radius)) * 40;
+                        const angle = Math.atan2(dy, dx);
+                        this.offsetX += Math.cos(angle) * force;
+                        this.offsetY += Math.sin(angle) * force;
+                    }
+                });
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x + this.offsetX, this.y + this.offsetY, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                ctx.fill();
+            }
+        }
+
+        function init() {
+            for (let i = 0; i < maxParticles; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+
+            waves.forEach((wave, index) => {
+                wave.radius += 12;
+                if (wave.radius > Math.max(width, height) * 1.2) {
+                    waves.splice(index, 1);
+                }
+            });
+
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        init();
+        animate();
+
+        // Поиск и подсказки
+        const searchInput = document.querySelector('.search-input');
+        const searchBtn = document.querySelector('.search-button');
+        const suggestionsBox = document.querySelector('.suggestions');
+        let currentFocus = -1;
+
+        function performSearch(query) {
+            if (!query.trim()) return;
+            enterTriggered = true;
+
+            particles.forEach(p => {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 15 + 5;
+                p.vx = Math.cos(angle) * speed;
+                p.vy = Math.sin(angle) * speed;
+            });
+
+            setTimeout(() => {
+                window.location.href = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+            }, 800);
+        }
+
+        function createLetterWave(char) {
+            const rx = Math.random() * width;
+            const ry = Math.random() * height;
+
+            const div = document.createElement('div');
+            div.className = 'falling-letter';
+            div.textContent = char;
+            div.style.left = `${rx}px`;
+            div.style.top = `${ry}px`;
+            document.body.appendChild(div);
+
+            waves.push({ x: rx, y: ry, radius: 0 });
+
+            setTimeout(() => div.remove(), 1000);
+        }
+
+        searchInput.addEventListener('keydown', (e) => {
+            const items = suggestionsBox.querySelectorAll('li');
+            
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (currentFocus > -1 && items[currentFocus]) {
+                    performSearch(items[currentFocus].textContent);
+                } else {
+                    performSearch(searchInput.value);
+                }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                currentFocus++;
+                addActive(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                currentFocus--;
+                addActive(items);
+            } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                createLetterWave(e.key);
+            }
+        });
+
+        function addActive(items) {
+            if (!items) return false;
+            removeActive(items);
+            if (currentFocus >= items.length) currentFocus = 0;
+            if (currentFocus < 0) currentFocus = items.length - 1;
+            items[currentFocus].classList.add('active');
+            searchInput.value = items[currentFocus].textContent;
+        }
+
+        function removeActive(items) {
+            for (let i = 0; i < items.length; i++) {
+                items[i].classList.remove('active');
+            }
+        }
+
+        // Запрос подсказок через Google Autosuggest API (JSONP/CORS обход через script tag)
+        let debounceTimer;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            const query = searchInput.value.trim();
+            if (!query) {
+                suggestionsBox.style.display = 'none';
+                return;
+            }
+
+            debounceTimer = setTimeout(() => {
+                const callbackName = 'googleSuggestCallback_' + Math.floor(Math.random() * 1000000);
+                window[callbackName] = function(data) {
+                    const suggestions = data[1] || [];
+                    showSuggestions(suggestions);
+                    delete window[callbackName];
+                    document.getElementById(callbackName)?.remove();
+                };
+
+                const script = document.createElement('script');
+                script.id = callbackName;
+                script.src = `https://suggestqueries.google.com/complete/search?client=youtube&q=${encodeURIComponent(query)}&jsonp=${callbackName}`;
+                document.body.appendChild(script);
+            }, 200);
+        });
+
+        function showSuggestions(list) {
+            suggestionsBox.innerHTML = '';
+            currentFocus = -1;
+            
+            if (list.length === 0) {
+                suggestionsBox.style.display = 'none';
+                return;
+            }
+
+            list.forEach(item => {
+                const li = document.createElement('li');
+                li.textContent = item[0];
+                li.addEventListener('click', () => {
+                    searchInput.value = item[0];
+                    performSearch(item[0]);
+                });
+                suggestionsBox.appendChild(li);
+            });
+
+            suggestionsBox.style.display = 'block';
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+                suggestionsBox.style.display = 'none';
+            }
+        });
+
+        searchBtn.addEventListener('click', () => {
+            performSearch(searchInput.value);
+        });
+    </script>
+</body>
+</html>
