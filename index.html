@@ -2,13 +2,14 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Particle Search</title>
     <style>
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body, html {
@@ -34,25 +35,26 @@
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 10;
-            width: 90%;
-            max-width: 600px;
+            width: 92%;
+            max-width: 540px;
         }
 
         .search-wrapper {
             display: flex;
-            align-items: stretch;
-            background: rgba(20, 20, 20, 0.85);
+            align-items: center;
+            background: rgba(15, 15, 15, 0.85);
             border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 30px;
             padding: 4px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             position: relative;
             transition: border-color 0.3s ease;
         }
 
         .search-wrapper:focus-within {
-            border-color: rgba(255, 255, 255, 0.4);
+            border-color: rgba(255, 255, 255, 0.35);
         }
 
         .search-input {
@@ -62,19 +64,20 @@
             outline: none;
             color: #fff;
             font-size: 16px;
-            padding: 12px 20px;
+            padding: 12px 16px;
             width: 100%;
         }
 
+        /* Кнопка с иконкой лупы */
         .search-button {
             background: transparent;
             border: 1px solid rgba(255, 255, 255, 0.25);
-            border-radius: 24px;
-            color: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            color: rgba(255, 255, 255, 0.85);
             cursor: pointer;
-            padding: 0 24px;
-            font-size: 15px;
-            font-weight: 500;
+            width: 42px;
+            height: 42px;
+            min-width: 42px;
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
@@ -83,10 +86,20 @@
             outline: none;
         }
 
-        .search-button:hover {
-            background: rgba(255, 255, 255, 0.1);
+        .search-button:hover, .search-button:active {
+            background: rgba(255, 255, 255, 0.12);
             color: #fff;
             border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .search-button svg {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
         .suggestions {
@@ -94,21 +107,22 @@
             top: 100%;
             left: 0;
             right: 0;
-            background: rgba(20, 20, 20, 0.95);
+            background: rgba(15, 15, 15, 0.95);
             border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 16px;
+            border-radius: 18px;
             margin-top: 8px;
-            max-height: 250px;
+            max-height: 220px;
             overflow-y: auto;
             list-style: none;
             display: none;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            backdrop-filter: blur(10px);
-            padding: 8px 0;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 6px 0;
         }
 
         .suggestions li {
-            padding: 10px 20px;
+            padding: 12px 20px;
             color: rgba(255, 255, 255, 0.8);
             cursor: pointer;
             font-size: 15px;
@@ -120,24 +134,23 @@
             color: #fff;
         }
 
-        /* Анимированные падающие буквы */
         .falling-letter {
             position: absolute;
-            color: rgba(255, 255, 255, 0.9);
+            color: rgba(255, 255, 255, 0.85);
             font-family: monospace;
-            font-size: 24px;
+            font-size: 22px;
             pointer-events: none;
             z-index: 5;
-            animation: fadeOut 1s forwards ease-out;
+            animation: fadeOut 0.8s forwards ease-out;
         }
 
         @keyframes fadeOut {
             0% {
-                transform: scale(0.5);
+                transform: scale(0.6);
                 opacity: 1;
             }
             100% {
-                transform: scale(2.5);
+                transform: scale(2.2);
                 opacity: 0;
             }
         }
@@ -149,8 +162,13 @@
 
     <div class="search-container">
         <div class="search-wrapper">
-            <input type="text" class="search-input" placeholder="Поиск в Google..." autocomplete="off" autofocus>
-            <button class="search-button">Найти</button>
+            <input type="text" class="search-input" placeholder="" autocomplete="off" autofocus>
+            <button class="search-button" aria-label="Поиск">
+                <svg viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </button>
             <ul class="suggestions"></ul>
         </div>
     </div>
@@ -163,7 +181,8 @@
         let height = canvas.height = window.innerHeight;
 
         const particles = [];
-        const maxParticles = 120;
+        // Увеличенное количество частиц, уменьшенный размер
+        const maxParticles = 280;
         let waves = [];
         let enterTriggered = false;
 
@@ -177,13 +196,13 @@
                 this.y = Math.random() * height;
                 this.baseX = this.x;
                 this.baseY = this.y;
-                this.vx = (Math.random() - 0.5) * 0.5;
-                this.vy = (Math.random() - 0.5) * 0.5;
-                this.size = Math.random() * 2 + 1.5;
+                this.vx = (Math.random() - 0.5) * 0.4;
+                this.vy = (Math.random() - 0.5) * 0.4;
+                // Более тонкие и мелкие частицы
+                this.size = Math.random() * 0.8 + 0.6;
                 this.alpha = 0.8;
                 this.offsetX = 0;
                 this.offsetY = 0;
-                this.speedMultiplier = 1;
             }
 
             update() {
@@ -201,16 +220,16 @@
                 if (this.x < 0 || this.x > width) this.vx *= -1;
                 if (this.y < 0 || this.y > height) this.vy *= -1;
 
-                this.offsetX *= 0.92;
-                this.offsetY *= 0.92;
+                this.offsetX *= 0.93;
+                this.offsetY *= 0.93;
 
                 waves.forEach(wave => {
                     const dx = (this.x + this.offsetX) - wave.x;
                     const dy = (this.y + this.offsetY) - wave.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
-                    if (distance < wave.radius && distance > wave.radius - 120) {
-                        const force = (1 - (distance / wave.radius)) * 40;
+                    if (distance < wave.radius && distance > wave.radius - 100) {
+                        const force = (1 - (distance / wave.radius)) * 35;
                         const angle = Math.atan2(dy, dx);
                         this.offsetX += Math.cos(angle) * force;
                         this.offsetY += Math.sin(angle) * force;
@@ -236,7 +255,7 @@
             ctx.clearRect(0, 0, width, height);
 
             waves.forEach((wave, index) => {
-                wave.radius += 12;
+                wave.radius += 10;
                 if (wave.radius > Math.max(width, height) * 1.2) {
                     waves.splice(index, 1);
                 }
@@ -258,7 +277,6 @@
         init();
         animate();
 
-        // Поиск и подсказки
         const searchInput = document.querySelector('.search-input');
         const searchBtn = document.querySelector('.search-button');
         const suggestionsBox = document.querySelector('.suggestions');
@@ -270,14 +288,14 @@
 
             particles.forEach(p => {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = Math.random() * 15 + 5;
+                const speed = Math.random() * 12 + 6;
                 p.vx = Math.cos(angle) * speed;
                 p.vy = Math.sin(angle) * speed;
             });
 
             setTimeout(() => {
                 window.location.href = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-            }, 800);
+            }, 750);
         }
 
         function createLetterWave(char) {
@@ -293,9 +311,10 @@
 
             waves.push({ x: rx, y: ry, radius: 0 });
 
-            setTimeout(() => div.remove(), 1000);
+            setTimeout(() => div.remove(), 800);
         }
 
+        // Поддержка как десктопного ввода, так и мобильной клавиатуры
         searchInput.addEventListener('keydown', (e) => {
             const items = suggestionsBox.querySelectorAll('li');
             
@@ -314,8 +333,18 @@
                 e.preventDefault();
                 currentFocus--;
                 addActive(items);
-            } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                createLetterWave(e.key);
+            }
+        });
+
+        // Отслеживаем ввод символов для мобилок и ПК
+        searchInput.addEventListener('input', (e) => {
+            // Берем последний введённый символ
+            const val = searchInput.value;
+            if (val.length > 0) {
+                const lastChar = val[val.length - 1];
+                if (lastChar && lastChar !== ' ') {
+                    createLetterWave(lastChar);
+                }
             }
         });
 
@@ -334,7 +363,6 @@
             }
         }
 
-        // Запрос подсказок через Google Autosuggest API (JSONP/CORS обход через script tag)
         let debounceTimer;
         searchInput.addEventListener('input', () => {
             clearTimeout(debounceTimer);
@@ -357,7 +385,7 @@
                 script.id = callbackName;
                 script.src = `https://suggestqueries.google.com/complete/search?client=youtube&q=${encodeURIComponent(query)}&jsonp=${callbackName}`;
                 document.body.appendChild(script);
-            }, 200);
+            }, 180);
         });
 
         function showSuggestions(list) {
@@ -372,6 +400,12 @@
             list.forEach(item => {
                 const li = document.createElement('li');
                 li.textContent = item[0];
+                // touchend для быстрого отклика на телефонах
+                li.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    searchInput.value = item[0];
+                    performSearch(item[0]);
+                });
                 li.addEventListener('click', () => {
                     searchInput.value = item[0];
                     performSearch(item[0]);
@@ -388,7 +422,17 @@
             }
         });
 
+        document.addEventListener('touchstart', (e) => {
+            if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+                suggestionsBox.style.display = 'none';
+            }
+        });
+
         searchBtn.addEventListener('click', () => {
+            performSearch(searchInput.value);
+        });
+        searchBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
             performSearch(searchInput.value);
         });
     </script>
